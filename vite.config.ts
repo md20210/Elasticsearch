@@ -5,6 +5,8 @@ export default defineConfig({
   plugins: [react()],
   base: '/elasticsearch/',
   build: {
+    minify: false,
+    cssMinify: false,
     rollupOptions: {
       output: {
         entryFileNames: `assets/[name]-[hash].js`,
