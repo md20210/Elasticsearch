@@ -1,21 +1,41 @@
-import { useState } from 'react';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Login from './components/Auth/Login';
-import Register from './components/Auth/Register';
+import { useState, useEffect } from 'react';
 import AnalyzeJob from './components/AnalyzeJob';
 import ResultsChromaDB from './components/ResultsChromaDB';
 import ResultsElastic from './components/ResultsElastic';
-import { Database, FlaskConical, LogOut, FileSearch } from 'lucide-react';
-import { elasticsearchApi } from './services/api';
+import { Database, FlaskConical, FileSearch } from 'lucide-react';
+import { elasticsearchApi, initAuth } from './services/api';
 import type { AnalysisRequest, AnalysisResult } from './types';
 
 type Tab = 'analyze' | 'chromadb' | 'elastic';
 
-function AppContent() {
-  const { user, logout, isLoading } = useAuth();
-  const [showLogin, setShowLogin] = useState(true);
+function App() {
   const [activeTab, setActiveTab] = useState<Tab>('analyze');
   const [results, setResults] = useState<AnalysisResult | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  // Initialize authentication and load latest analysis on app load
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        await initAuth();
+        console.log('Authentication initialized successfully');
+
+        // Load latest analysis if available
+        const latestAnalysis = await elasticsearchApi.getLatestAnalysis();
+        if (latestAnalysis) {
+          setResults(latestAnalysis);
+          console.log('Loaded latest analysis from database');
+        }
+      } catch (error) {
+        console.error('Failed to initialize authentication:', error);
+      } finally {
+        // Mark auth as ready even if there was an error
+        // so the UI doesn't stay in loading state forever
+        setAuthReady(true);
+      }
+    };
+    initialize();
+  }, []);
 
   const handleAnalyze = async (data: AnalysisRequest, provider: string) => {
     try {
@@ -28,36 +48,8 @@ function AppContent() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="w-full max-w-md">
-          {showLogin ? (
-            <Login
-              onLoginSuccess={() => {}}
-              onSwitchToRegister={() => setShowLogin(false)}
-            />
-          ) : (
-            <Register
-              onRegisterSuccess={() => {}}
-              onSwitchToLogin={() => setShowLogin(true)}
-            />
-          )}
-        </div>
-      </div>
-    );
-  }
+  // NO LOGIN REQUIRED FOR ELASTICSEARCH SHOWCASE - Direct Access
+  // Authentication is handled automatically using demo user token
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -74,16 +66,9 @@ function AppContent() {
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{user.email}</p>
-                <p className="text-xs text-gray-500">Logged in</p>
+                <p className="text-sm font-medium text-gray-900">Demo User</p>
+                <p className="text-xs text-gray-500">Public Access</p>
               </div>
-              <button
-                onClick={logout}
-                className="flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Logout</span>
-              </button>
             </div>
           </div>
         </div>
@@ -138,9 +123,20 @@ function AppContent() {
 
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'analyze' && <AnalyzeJob onAnalyze={handleAnalyze} />}
-        {activeTab === 'chromadb' && <ResultsChromaDB results={results} />}
-        {activeTab === 'elastic' && <ResultsElastic />}
+        {!authReady ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+              <p className="text-gray-600">Loading...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'analyze' && <AnalyzeJob onAnalyze={handleAnalyze} />}
+            {activeTab === 'chromadb' && <ResultsChromaDB results={results} />}
+            {activeTab === 'elastic' && <ResultsElastic results={results} />}
+          </>
+        )}
       </main>
 
       {/* Footer */}
@@ -155,10 +151,4 @@ function AppContent() {
   );
 }
 
-export default function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
-}
+export default App;

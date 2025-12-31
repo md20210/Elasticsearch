@@ -1,3 +1,11 @@
+// User Profile Request
+export interface UserProfileRequest {
+  cv_text: string;
+  cover_letter_text?: string;
+  homepage_url?: string;
+  linkedin_url?: string;
+}
+
 // Analysis Request
 export interface AnalysisRequest {
   cv_text?: string;
@@ -11,9 +19,26 @@ export interface AnalysisRequest {
 
 // Analysis Results
 export interface AnalysisResult {
+  id?: number;
+  user_id?: string;
+  job_description: string;
+  job_url?: string;
   job_analysis: JobAnalysis;
   fit_score: FitScore;
   success_probability: SuccessProbability;
+  created_at?: string;
+  chromadb_search_time_ms: number;
+  chromadb_matches_count: number;
+  elasticsearch_search_time_ms: number;
+  elasticsearch_matches_count: number;
+  performance_comparison: {
+    faster_system: string;
+    time_saved_ms: number;
+    speedup_factor: number;
+    chromadb_time_ms: number;
+    elasticsearch_time_ms: number;
+    percentage_difference: number;
+  };
 }
 
 export interface JobAnalysis {
