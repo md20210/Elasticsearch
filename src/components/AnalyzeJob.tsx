@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Upload, Link as LinkIcon, FileText, Loader2, Trash2 } from 'lucide-react';
+import { Sparkles, Upload, FileText, Loader2, Trash2 } from 'lucide-react';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
 import { elasticsearchApi } from '../services/api';
@@ -9,8 +9,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs
 
 export default function AnalyzeJob() {
   const [cvText, setCvText] = useState('');
-  const [homepageUrl, setHomepageUrl] = useState('');
-  const [linkedinUrl, setLinkedinUrl] = useState('');
   const [provider, setProvider] = useState('grok');
   const [skipProcessing, setSkipProcessing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -26,8 +24,6 @@ export default function AnalyzeJob() {
         const profile = await elasticsearchApi.getProfile();
         if (profile) {
           setCvText(profile.cv_text || '');
-          setHomepageUrl(profile.homepage_url || '');
-          setLinkedinUrl(profile.linkedin_url || '');
           console.log('Loaded saved profile data');
         }
       } catch (error) {
@@ -116,14 +112,12 @@ export default function AnalyzeJob() {
 
       // Import data to both databases (backend automatically clears old data first)
       if (skipProcessing) {
-        setImportStatus('Raw Import: Crawling URLs and importing to databases (AI processing skipped)...');
+        setImportStatus('Raw Import: Importing to databases (AI processing skipped)...');
       } else {
-        setImportStatus('Clearing old data, crawling URLs and importing to pgvector & Elasticsearch...');
+        setImportStatus('Clearing old data and importing to pgvector & Elasticsearch...');
       }
       const profileData = {
         cv_text: cvText,
-        homepage_url: homepageUrl || undefined,
-        linkedin_url: linkedinUrl || undefined,
       };
 
       const result = await elasticsearchApi.createProfile(profileData, provider, skipProcessing);
@@ -139,11 +133,10 @@ export default function AnalyzeJob() {
 
         setSuccess(
           `✅ Raw Import abgeschlossen!\n\n` +
-          `✅ Schritt 1/4: Alte Daten gelöscht\n` +
-          `${result.homepage_crawled || result.linkedin_crawled ? '✅' : '⚠️'} Schritt 2/4: URLs gecrawlt (Homepage: ${result.homepage_crawled ? '✅' : '❌'}, LinkedIn: ${result.linkedin_crawled ? '✅' : '❌'})\n` +
-          `${step5Status} Schritt 3/4: Elasticsearch indexiert (${result.elasticsearch_indexed ? 'Raw Text + gecrawlte Daten' : 'Fehler'})\n` +
-          `${step7Status} Schritt 4/4: pgvector (${result.pgvector_chunks || 0} chunks)\n\n` +
-          `⚠️ Hinweis: AI-Verarbeitung wurde übersprungen - gecrawlte Daten nicht analysiert`
+          `✅ Schritt 1/3: Alte Daten gelöscht\n` +
+          `${step5Status} Schritt 2/3: Elasticsearch indexiert (Raw Text)\n` +
+          `${step7Status} Schritt 3/3: pgvector (${result.pgvector_chunks || 0} chunks)\n\n` +
+          `⚠️ Hinweis: AI-Verarbeitung wurde übersprungen`
         );
       } else {
         // Detailed success message with AI processing
@@ -153,19 +146,16 @@ export default function AnalyzeJob() {
         const jobTitles = result.job_titles?.length || 0;
 
         // Build status message with real import results
-        const step4Status = result.homepage_crawled || result.linkedin_crawled ? '✅' : '⚠️';
-        const step5Status = result.elasticsearch_indexed ? '✅' : '❌';
-        const step7Status = (result.pgvector_chunks && result.pgvector_chunks > 0) ? '✅' : '❌';
+        const step4Status = result.elasticsearch_indexed ? '✅' : '❌';
+        const step5Status = (result.pgvector_chunks && result.pgvector_chunks > 0) ? '✅' : '❌';
 
         setSuccess(
           `✅ CV Import abgeschlossen!\n\n` +
-          `✅ Schritt 1/7: LLM-Analyse abgeschlossen\n` +
-          `✅ Schritt 2/7: Profil in Datenbank gespeichert\n` +
-          `✅ Schritt 3/7: Alte Daten gelöscht\n` +
-          `${step4Status} Schritt 4/7: URLs gecrawlt (Homepage: ${result.homepage_crawled ? '✅' : '❌'}, LinkedIn: ${result.linkedin_crawled ? '✅' : '❌'})\n` +
-          `${step5Status} Schritt 5/7: Elasticsearch indexiert\n` +
-          `✅ Schritt 6/7: Profil aktualisiert\n` +
-          `${step7Status} Schritt 7/7: pgvector (${result.pgvector_chunks || 0} chunks)\n\n` +
+          `✅ Schritt 1/5: LLM-Analyse abgeschlossen\n` +
+          `✅ Schritt 2/5: Profil in Datenbank gespeichert\n` +
+          `✅ Schritt 3/5: Alte Daten gelöscht\n` +
+          `${step4Status} Schritt 4/5: Elasticsearch indexiert\n` +
+          `${step5Status} Schritt 5/5: pgvector (${result.pgvector_chunks || 0} chunks)\n\n` +
           `📊 Extrahierte Daten:\n` +
           `   • Skills: ${skillsCount}\n` +
           `   • Erfahrung: ${experience}\n` +
@@ -184,8 +174,6 @@ export default function AnalyzeJob() {
 
   const handleClear = () => {
     setCvText('');
-    setHomepageUrl('');
-    setLinkedinUrl('');
     setError('');
     setSuccess('');
     setImportStatus('');
@@ -228,40 +216,6 @@ export default function AnalyzeJob() {
         </div>
       </div>
 
-      {/* URLs */}
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <LinkIcon className="w-5 h-5 text-green-600" />
-          <h3 className="text-lg font-bold text-gray-900">Additional Information (Optional)</h3>
-        </div>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Personal Homepage URL
-            </label>
-            <input
-              type="url"
-              value={homepageUrl}
-              onChange={(e) => setHomepageUrl(e.target.value)}
-              placeholder="https://yourwebsite.com"
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              LinkedIn Profile URL
-            </label>
-            <input
-              type="url"
-              value={linkedinUrl}
-              onChange={(e) => setLinkedinUrl(e.target.value)}
-              placeholder="https://linkedin.com/in/yourprofile"
-              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-      </div>
-
       {/* LLM Provider */}
       <div className="bg-white rounded-xl shadow-md p-6">
         <div className="flex items-center space-x-3 mb-4">
@@ -293,7 +247,7 @@ export default function AnalyzeJob() {
         <div className="space-y-3">
           <div className="mb-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
             <p className="text-sm text-purple-900">
-              <strong>What is data processing?</strong> When enabled, your CV data and crawled URL content will be analyzed by AI to extract skills, experience, education, and job titles. URLs are always crawled. This provides better search results but takes longer.
+              <strong>What is data processing?</strong> When enabled, your CV data will be analyzed by AI to extract skills, experience, education, and job titles. This provides better search results but takes longer.
             </p>
           </div>
           <div className="space-y-2">
@@ -307,7 +261,7 @@ export default function AnalyzeJob() {
               />
               <div>
                 <div className="font-medium text-gray-900">Enable Data Processing (Recommended)</div>
-                <div className="text-sm text-gray-600">AI analyzes CV and crawled content, extracts skills - best search results</div>
+                <div className="text-sm text-gray-600">AI analyzes CV, extracts skills - best search results</div>
               </div>
             </label>
             <label className="flex items-center space-x-3 p-3 border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
@@ -320,7 +274,7 @@ export default function AnalyzeJob() {
               />
               <div>
                 <div className="font-medium text-gray-900">Skip Data Processing (Raw Import)</div>
-                <div className="text-sm text-gray-600">URLs crawled but content not AI-analyzed - faster import, limited extraction</div>
+                <div className="text-sm text-gray-600">No AI analysis - faster import, limited extraction</div>
               </div>
             </label>
           </div>
@@ -353,11 +307,6 @@ export default function AnalyzeJob() {
                   <td className="px-4 py-3 text-sm text-center text-red-600 font-medium">❌ Nein</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 text-sm text-gray-900">URL-Crawling</td>
-                  <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">✅ Ja</td>
-                  <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">✅ Ja</td>
-                </tr>
-                <tr className="bg-gray-50">
                   <td className="px-4 py-3 text-sm text-gray-900">Text-Deduplizierung</td>
                   <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">✅ Ja</td>
                   <td className="px-4 py-3 text-sm text-center text-red-600 font-medium">❌ Nein</td>
