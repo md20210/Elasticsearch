@@ -219,12 +219,31 @@ export default function AnalyzeJob() {
             </p>
           </div>
 
-          {/* File Upload as Alternative - Drag & Drop */}
+          {/* File Upload as Alternative */}
           <details className="border border-gray-200 rounded-lg">
             <summary className="px-4 py-3 cursor-pointer text-sm text-gray-600 hover:bg-gray-50">
-              Alternative: Drag & Drop File (.txt, .pdf recommended - .docx may fail)
+              Alternative: Upload File or Drag & Drop (.txt, .pdf recommended - .docx may fail)
             </summary>
-            <div className="p-4 border-t border-gray-200">
+            <div className="p-4 border-t border-gray-200 space-y-3">
+              {/* File Input Button */}
+              <div className="flex items-center justify-center">
+                <label className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg cursor-pointer transition">
+                  <Upload className="w-5 h-5" />
+                  <span>Choose File</span>
+                  <input
+                    type="file"
+                    accept=".txt,.pdf,.doc,.docx"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleFileUpload(file);
+                    }}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {/* Drag & Drop Area */}
+              <div className="text-center text-xs text-gray-500 my-2">or</div>
               <div
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -237,13 +256,13 @@ export default function AnalyzeJob() {
                   const file = e.dataTransfer.files?.[0];
                   if (file) handleFileUpload(file);
                 }}
-                className={`flex flex-col items-center justify-center px-4 py-8 border-2 border-dashed rounded-lg transition ${
+                className={`flex flex-col items-center justify-center px-4 py-6 border-2 border-dashed rounded-lg transition ${
                   isDragging
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
                 }`}
               >
-                <Upload className={`w-8 h-8 mb-2 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
+                <Upload className={`w-6 h-6 mb-2 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
                 <p className="text-sm text-gray-600 font-medium mb-1">
                   {isDragging ? 'Drop your file here' : 'Drag & Drop your CV file here'}
                 </p>
