@@ -30,20 +30,37 @@ export default function ComparisonTab() {
   const [selectedLLM, setSelectedLLM] = useState<'local' | 'grok'>('grok');
   const [loading, setLoading] = useState(false);
   const [uploadingQuestions, setUploadingQuestions] = useState(false);
-  const [results, setResults] = useState<ComparisonResult[]>(() => {
-    // Load saved results from localStorage on mount
-    const saved = localStorage.getItem('comparison_results');
-    console.log('📊 Loading comparison results from localStorage:', saved ? `Found ${JSON.parse(saved).length} results` : 'No saved results');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [results, setResults] = useState<ComparisonResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [currentModel, setCurrentModel] = useState<string>('llama3.2:3b');
 
-  // Save results to localStorage whenever they change
+  // Load results from database on mount
   useEffect(() => {
-    console.log('💾 Saving comparison results to localStorage:', results.length, 'results');
-    localStorage.setItem('comparison_results', JSON.stringify(results));
-  }, [results]);
+    const loadResults = async () => {
+      try {
+        const response = await fetch(
+          'https://general-backend-production-a734.up.railway.app/elasticsearch/comparison-results',
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📊 Loaded comparison results from database:', data.results.length, 'results');
+          setResults(data.results || []);
+        } else {
+          console.warn('Failed to load comparison results from database');
+        }
+      } catch (err) {
+        console.error('Error loading comparison results:', err);
+      }
+    };
+
+    loadResults();
+  }, []);
 
   // Load current model on mount
   useEffect(() => {
@@ -328,9 +345,27 @@ export default function ComparisonTab() {
               </p>
             </div>
             <button
-              onClick={() => {
-                setResults([]);
-                localStorage.removeItem('comparison_results');
+              onClick={async () => {
+                try {
+                  const response = await fetch(
+                    'https://general-backend-production-a734.up.railway.app/elasticsearch/comparison-results',
+                    {
+                      method: 'DELETE',
+                      headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                      },
+                    }
+                  );
+
+                  if (response.ok) {
+                    setResults([]);
+                    console.log('🗑️ Cleared all comparison results from database');
+                  } else {
+                    console.error('Failed to clear comparison results');
+                  }
+                } catch (err) {
+                  console.error('Error clearing comparison results:', err);
+                }
               }}
               className="bg-red-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-600 transition text-sm"
             >
