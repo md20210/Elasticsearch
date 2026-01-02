@@ -224,21 +224,21 @@ export default function AnalyzeJob() {
               Alternative: Upload File (.txt, .pdf recommended - .docx may fail)
             </summary>
             <div className="p-4 border-t border-gray-200">
-              <div
-                onClick={() => {
-                  const input = document.createElement('input');
-                  input.type = 'file';
-                  input.accept = '.txt,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-                  input.onchange = (e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0];
+              <div className="relative">
+                <input
+                  id="cv-file-input"
+                  type="file"
+                  accept=".txt,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
                     if (file) handleFileUpload(file);
-                  };
-                  input.click();
-                }}
-                className="flex items-center justify-center px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 transition"
-              >
-                <Upload className="w-4 h-4 mr-2 text-gray-500" />
-                <span className="text-sm text-gray-600">Click to Upload CV File (.txt, .pdf, .docx)</span>
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                <div className="flex items-center justify-center px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 transition pointer-events-none">
+                  <Upload className="w-4 h-4 mr-2 text-gray-500" />
+                  <span className="text-sm text-gray-600">Click here to select CV File (.txt, .pdf, .docx)</span>
+                </div>
               </div>
               <p className="text-xs text-gray-500 mt-2">
                 ⚠️ .docx files may fail if corrupted. If upload fails, please copy/paste the text instead.
