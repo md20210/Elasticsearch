@@ -13,6 +13,7 @@ export default function AnalyzeJob() {
   const [importStatus, setImportStatus] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
 
   // Load saved profile data on mount
   useEffect(() => {
@@ -218,27 +219,37 @@ export default function AnalyzeJob() {
             </p>
           </div>
 
-          {/* File Upload as Alternative */}
+          {/* File Upload as Alternative - Drag & Drop */}
           <details className="border border-gray-200 rounded-lg">
             <summary className="px-4 py-3 cursor-pointer text-sm text-gray-600 hover:bg-gray-50">
-              Alternative: Upload File (.txt, .pdf recommended - .docx may fail)
+              Alternative: Drag & Drop File (.txt, .pdf recommended - .docx may fail)
             </summary>
             <div className="p-4 border-t border-gray-200">
-              <div className="relative">
-                <input
-                  id="cv-file-input"
-                  type="file"
-                  accept=".txt,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleFileUpload(file);
-                  }}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
-                <div className="flex items-center justify-center px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 transition pointer-events-none">
-                  <Upload className="w-4 h-4 mr-2 text-gray-500" />
-                  <span className="text-sm text-gray-600">Click here to select CV File (.txt, .pdf, .docx)</span>
-                </div>
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) handleFileUpload(file);
+                }}
+                className={`flex flex-col items-center justify-center px-4 py-8 border-2 border-dashed rounded-lg transition ${
+                  isDragging
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+                }`}
+              >
+                <Upload className={`w-8 h-8 mb-2 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
+                <p className="text-sm text-gray-600 font-medium mb-1">
+                  {isDragging ? 'Drop your file here' : 'Drag & Drop your CV file here'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Supports .txt, .pdf, .docx (max 10MB)
+                </p>
               </div>
               <p className="text-xs text-gray-500 mt-2">
                 ⚠️ .docx files may fail if corrupted. If upload fails, please copy/paste the text instead.
