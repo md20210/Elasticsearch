@@ -33,6 +33,7 @@ export default function ComparisonTab() {
   const [results, setResults] = useState<ComparisonResult[]>(() => {
     // Load saved results from localStorage on mount
     const saved = localStorage.getItem('comparison_results');
+    console.log('📊 Loading comparison results from localStorage:', saved ? `Found ${JSON.parse(saved).length} results` : 'No saved results');
     return saved ? JSON.parse(saved) : [];
   });
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,7 @@ export default function ComparisonTab() {
 
   // Save results to localStorage whenever they change
   useEffect(() => {
+    console.log('💾 Saving comparison results to localStorage:', results.length, 'results');
     localStorage.setItem('comparison_results', JSON.stringify(results));
   }, [results]);
 
