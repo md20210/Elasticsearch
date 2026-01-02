@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { AnalysisRequest, AnalysisResult, UserProfileRequest } from '../types';
+import type { AnalysisRequest, AnalysisResult, UserProfileRequest, UserProfileResponse } from '../types';
 
 const API_BASE_URL = 'https://general-backend-production-a734.up.railway.app';
 
@@ -45,8 +45,11 @@ export const initAuth = async (): Promise<void> => {
 
 export const elasticsearchApi = {
   // Create or update user profile
-  createProfile: async (profileData: UserProfileRequest, provider: string = 'grok') => {
-    const response = await api.post(`/elasticsearch/profile?provider=${provider}`, profileData);
+  createProfile: async (profileData: UserProfileRequest, provider: string = 'grok', skipProcessing: boolean = false): Promise<UserProfileResponse> => {
+    const response = await api.post<UserProfileResponse>(
+      `/elasticsearch/profile?provider=${provider}&skip_processing=${skipProcessing}`,
+      profileData
+    );
     return response.data;
   },
 
@@ -56,7 +59,7 @@ export const elasticsearchApi = {
     return response.data;
   },
 
-  // Analyze job and compare ChromaDB vs Elasticsearch
+  // Analyze job and compare pgvector vs Elasticsearch
   analyzeJob: async (data: AnalysisRequest, provider: string = 'grok'): Promise<AnalysisResult> => {
     // First, create/update profile with CV data if provided
     if (data.cv_text || data.cover_letter_text || data.homepage_url || data.linkedin_url) {
@@ -103,109 +106,9 @@ export const elasticsearchApi = {
     }
   },
 
-  // Parse URL (placeholder)
-  parseUrl: async (url: string): Promise<{ text: string }> => {
-    const response = await api.post<{ text: string }>('/parse-url', { url });
-    return response.data;
-  },
-
-  // ===== Elasticsearch Advanced Features =====
-
-  // Get features overview
-  getFeaturesOverview: async () => {
-    const response = await api.get('/elasticsearch/advanced/features-overview');
-    return response.data;
-  },
-
-  // Get advanced aggregations
-  getAggregations: async () => {
-    const response = await api.get('/elasticsearch/advanced/aggregations');
-    return response.data;
-  },
-
-  // Phrase search
-  phraseSearch: async (phrase: string, slop: number = 2) => {
-    const response = await api.post('/elasticsearch/advanced/phrase-search', null, {
-      params: { phrase, slop }
-    });
-    return response.data;
-  },
-
-  // Wildcard search
-  wildcardSearch: async (pattern: string, field: string = 'skills') => {
-    const response = await api.post('/elasticsearch/advanced/wildcard-search', null, {
-      params: { pattern, field }
-    });
-    return response.data;
-  },
-
-  // ===== Logstash Integration =====
-
-  // Parse CV with Logstash
-  parseCV: async (cvText: string) => {
-    const response = await api.post('/elasticsearch/logstash/parse-cv', null, {
-      params: { cv_text: cvText }
-    });
-    // API returns {status, data, logstash_deployed}, extract data
-    const result = response.data.data || response.data;
-    return {
-      parsed_skills: result.skills_extracted || [],
-      experience_years: result.experience_years,
-      education_level: result.education_level || 'Not specified',
-      job_titles: result.job_titles || [],
-      pipeline_execution_time_ms: Math.random() * 100 + 50 // Simulated
-    };
-  },
-
-  // Parse Job with Logstash
-  parseJob: async (jobDescription: string, jobId: string = 'generated') => {
-    const response = await api.post('/elasticsearch/logstash/parse-job', null, {
-      params: { job_description: jobDescription, job_id: jobId }
-    });
-    // API returns {status, data, logstash_deployed}, extract data
-    const result = response.data.data || response.data;
-    return {
-      parsed_skills: result.skills_extracted || [],
-      experience_years: result.experience_years,
-      education_level: result.education_level || 'Not specified',
-      job_titles: result.job_titles || [],
-      pipeline_execution_time_ms: Math.random() * 100 + 50 // Simulated
-    };
-  },
-
-  // Get Logstash pipeline status
-  getLogstashStatus: async () => {
-    const response = await api.get('/elasticsearch/logstash/pipeline-status');
-    return response.data;
-  },
-
-  // Get Elastic Stack status
-  getElasticStackStatus: async () => {
-    const response = await api.get('/elasticsearch/elastic-stack/status');
-    return response.data;
-  },
-
-  // ===== Demo Data Generator =====
-
-  // Generate demo data
-  generateDemoData: async (count: number = 100) => {
-    const response = await api.post('/elasticsearch/demo/generate', null, {
-      params: { count }
-    });
-    return response.data;
-  },
-
-  // Get demo statistics
-  getDemoStats: async () => {
-    const response = await api.get('/elasticsearch/demo/stats');
-    return response.data;
-  },
-
-  // Clear demo data
-  clearDemoData: async (keepLatest: number = 1) => {
-    const response = await api.delete('/elasticsearch/demo/clear', {
-      params: { keep_latest: keepLatest }
-    });
+  // Get database stats including Ollama model name
+  getDatabaseStats: async (): Promise<{ pgvector: { available: boolean; count: number }; elasticsearch: { available: boolean; count: number }; ollama_model: string }> => {
+    const response = await api.get('/elasticsearch/database-stats');
     return response.data;
   },
 };

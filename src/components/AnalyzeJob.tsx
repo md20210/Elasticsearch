@@ -1,29 +1,24 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Upload, Link as LinkIcon, FileText, Loader2, Trash2, Globe } from 'lucide-react';
+import { Sparkles, Upload, Link as LinkIcon, FileText, Loader2, Trash2 } from 'lucide-react';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
-import type { AnalysisRequest } from '../types';
 import { elasticsearchApi } from '../services/api';
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-interface AnalyzeJobProps {
-  onAnalyze: (data: AnalysisRequest, provider: string) => void;
-}
-
-export default function AnalyzeJob({ onAnalyze }: AnalyzeJobProps) {
+export default function AnalyzeJob() {
   const [cvText, setCvText] = useState('');
-  const [coverLetterText, setCoverLetterText] = useState('');
   const [homepageUrl, setHomepageUrl] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
-  const [jobUrl, setJobUrl] = useState('');
-  const [jobDescription, setJobDescription] = useState('');
   const [provider, setProvider] = useState('grok');
+  const [skipProcessing, setSkipProcessing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [importStatus, setImportStatus] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  // Load saved profile data and latest analysis on mount
+  // Load saved profile data on mount
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -31,18 +26,9 @@ export default function AnalyzeJob({ onAnalyze }: AnalyzeJobProps) {
         const profile = await elasticsearchApi.getProfile();
         if (profile) {
           setCvText(profile.cv_text || '');
-          setCoverLetterText(profile.cover_letter_text || '');
           setHomepageUrl(profile.homepage_url || '');
           setLinkedinUrl(profile.linkedin_url || '');
           console.log('Loaded saved profile data');
-        }
-
-        // Load latest analysis to pre-fill job fields
-        const latestAnalysis = await elasticsearchApi.getLatestAnalysis();
-        if (latestAnalysis && latestAnalysis.job_description) {
-          setJobDescription(latestAnalysis.job_description);
-          setJobUrl(latestAnalysis.job_url || '');
-          console.log('Loaded latest job analysis data');
         }
       } catch (error) {
         console.error('Failed to load saved data:', error);
@@ -53,7 +39,7 @@ export default function AnalyzeJob({ onAnalyze }: AnalyzeJobProps) {
     loadData();
   }, []);
 
-  const handleFileUpload = async (file: File, type: 'cv' | 'coverLetter' | 'job') => {
+  const handleFileUpload = async (file: File) => {
     try {
       let text = '';
 
@@ -108,10 +94,7 @@ export default function AnalyzeJob({ onAnalyze }: AnalyzeJobProps) {
         return;
       }
 
-      if (type === 'cv') setCvText(text);
-      else if (type === 'coverLetter') setCoverLetterText(text);
-      else setJobDescription(text);
-
+      setCvText(text);
       setError('');
     } catch (err) {
       console.error('Error parsing file:', err);
@@ -119,47 +102,81 @@ export default function AnalyzeJob({ onAnalyze }: AnalyzeJobProps) {
     }
   };
 
-  const handleLoadFromUrl = async (url: string, type: 'cv' | 'job') => {
-    if (!url) return;
-
-    try {
-      setError('');
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('Failed to load document from URL');
-      }
-
-      const text = await response.text();
-      if (type === 'cv') {
-        setCvText(text);
-      } else {
-        setJobDescription(text);
-      }
-    } catch (err) {
-      console.error('Error loading from URL:', err);
-      setError('Failed to load from URL. This may be due to CORS restrictions. Please try copy/paste instead.');
-    }
-  };
-
   const handleAnalyze = async () => {
     setIsLoading(true);
     setError('');
+    setSuccess('');
+    setImportStatus('');
 
     try {
-      const data: AnalysisRequest = {
-        cv_text: cvText || undefined,
-        cover_letter_text: coverLetterText || undefined,
+      // Validate that at least CV text is provided
+      if (!cvText || cvText.trim().length === 0) {
+        throw new Error('Please provide your CV/Resume text before importing.');
+      }
+
+      // Import data to both databases (backend automatically clears old data first)
+      if (skipProcessing) {
+        setImportStatus('Raw Import: Crawling URLs and importing to databases (AI processing skipped)...');
+      } else {
+        setImportStatus('Clearing old data, crawling URLs and importing to pgvector & Elasticsearch...');
+      }
+      const profileData = {
+        cv_text: cvText,
         homepage_url: homepageUrl || undefined,
         linkedin_url: linkedinUrl || undefined,
-        job_description: jobDescription || undefined,
-        job_url: jobUrl || undefined,
-        provider,
       };
 
-      await onAnalyze(data, provider);
+      const result = await elasticsearchApi.createProfile(profileData, provider, skipProcessing);
+      console.log('Profile created/imported successfully (old data automatically cleared)', result);
+
+      // Success - show detailed 7-step summary with real status
+      setImportStatus('');
+
+      if (skipProcessing) {
+        // Simple success message for raw import
+        const step5Status = result.elasticsearch_indexed ? '✅' : '❌';
+        const step7Status = (result.pgvector_chunks && result.pgvector_chunks > 0) ? '✅' : '❌';
+
+        setSuccess(
+          `✅ Raw Import abgeschlossen!\n\n` +
+          `✅ Schritt 1/4: Alte Daten gelöscht\n` +
+          `${result.homepage_crawled || result.linkedin_crawled ? '✅' : '⚠️'} Schritt 2/4: URLs gecrawlt (Homepage: ${result.homepage_crawled ? '✅' : '❌'}, LinkedIn: ${result.linkedin_crawled ? '✅' : '❌'})\n` +
+          `${step5Status} Schritt 3/4: Elasticsearch indexiert (${result.elasticsearch_indexed ? 'Raw Text + gecrawlte Daten' : 'Fehler'})\n` +
+          `${step7Status} Schritt 4/4: pgvector (${result.pgvector_chunks || 0} chunks)\n\n` +
+          `⚠️ Hinweis: AI-Verarbeitung wurde übersprungen - gecrawlte Daten nicht analysiert`
+        );
+      } else {
+        // Detailed success message with AI processing
+        const skillsCount = result.skills_extracted?.length || 0;
+        const experience = result.experience_years ? `${result.experience_years} years` : 'N/A';
+        const education = result.education_level || 'N/A';
+        const jobTitles = result.job_titles?.length || 0;
+
+        // Build status message with real import results
+        const step4Status = result.homepage_crawled || result.linkedin_crawled ? '✅' : '⚠️';
+        const step5Status = result.elasticsearch_indexed ? '✅' : '❌';
+        const step7Status = (result.pgvector_chunks && result.pgvector_chunks > 0) ? '✅' : '❌';
+
+        setSuccess(
+          `✅ CV Import abgeschlossen!\n\n` +
+          `✅ Schritt 1/7: LLM-Analyse abgeschlossen\n` +
+          `✅ Schritt 2/7: Profil in Datenbank gespeichert\n` +
+          `✅ Schritt 3/7: Alte Daten gelöscht\n` +
+          `${step4Status} Schritt 4/7: URLs gecrawlt (Homepage: ${result.homepage_crawled ? '✅' : '❌'}, LinkedIn: ${result.linkedin_crawled ? '✅' : '❌'})\n` +
+          `${step5Status} Schritt 5/7: Elasticsearch indexiert\n` +
+          `✅ Schritt 6/7: Profil aktualisiert\n` +
+          `${step7Status} Schritt 7/7: pgvector (${result.pgvector_chunks || 0} chunks)\n\n` +
+          `📊 Extrahierte Daten:\n` +
+          `   • Skills: ${skillsCount}\n` +
+          `   • Erfahrung: ${experience}\n` +
+          `   • Ausbildung: ${education}\n` +
+          `   • Job Titel: ${jobTitles}`
+        );
+      }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Analysis failed';
+      const errorMessage = err instanceof Error ? err.message : 'Import failed';
       setError(errorMessage);
+      setImportStatus('');
     } finally {
       setIsLoading(false);
     }
@@ -167,12 +184,11 @@ export default function AnalyzeJob({ onAnalyze }: AnalyzeJobProps) {
 
   const handleClear = () => {
     setCvText('');
-    setCoverLetterText('');
     setHomepageUrl('');
     setLinkedinUrl('');
-    setJobUrl('');
-    setJobDescription('');
     setError('');
+    setSuccess('');
+    setImportStatus('');
   };
 
   return (
@@ -193,7 +209,7 @@ export default function AnalyzeJob({ onAnalyze }: AnalyzeJobProps) {
               accept=".txt,.doc,.docx,.pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) handleFileUpload(file, 'cv');
+                if (file) handleFileUpload(file);
               }}
             />
           </label>
@@ -207,41 +223,6 @@ export default function AnalyzeJob({ onAnalyze }: AnalyzeJobProps) {
               onChange={(e) => setCvText(e.target.value)}
               placeholder="Paste your CV/Resume text here..."
               className="w-full h-40 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Cover Letter */}
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <FileText className="w-5 h-5 text-purple-600" />
-          <h3 className="text-lg font-bold text-gray-900">Your Cover Letter (Optional)</h3>
-        </div>
-        <div className="space-y-3">
-          <label className="flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-purple-500 transition">
-            <Upload className="w-4 h-4 mr-2 text-gray-500" />
-            <span className="text-sm text-gray-600">Upload Cover Letter (.txt, .doc, .docx, .pdf)</span>
-            <input
-              type="file"
-              className="hidden"
-              accept=".txt,.doc,.docx,.pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFileUpload(file, 'coverLetter');
-              }}
-            />
-          </label>
-          <div className="text-center text-gray-500 text-sm">OR</div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Paste Cover Letter Text
-            </label>
-            <textarea
-              value={coverLetterText}
-              onChange={(e) => setCoverLetterText(e.target.value)}
-              placeholder="Paste your cover letter here..."
-              className="w-full h-32 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
             />
           </div>
         </div>
@@ -281,80 +262,141 @@ export default function AnalyzeJob({ onAnalyze }: AnalyzeJobProps) {
         </div>
       </div>
 
-      {/* Job Description */}
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <Sparkles className="w-5 h-5 text-orange-600" />
-          <h3 className="text-lg font-bold text-gray-900">Job Description</h3>
-        </div>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Job Description URL
-            </label>
-            <div className="flex space-x-2">
-              <input
-                type="url"
-                value={jobUrl}
-                onChange={(e) => setJobUrl(e.target.value)}
-                placeholder="https://company.com/careers/job-posting"
-                className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-              <button
-                onClick={() => handleLoadFromUrl(jobUrl, 'job')}
-                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition flex items-center space-x-2"
-              >
-                <Globe className="w-4 h-4" />
-                <span>Load</span>
-              </button>
-            </div>
-          </div>
-          <div className="text-center text-gray-500 text-sm">OR</div>
-          <label className="flex items-center justify-center px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-orange-500 transition">
-            <Upload className="w-4 h-4 mr-2 text-gray-500" />
-            <span className="text-sm text-gray-600">Upload Job Description (.txt, .doc, .docx, .pdf)</span>
-            <input
-              type="file"
-              className="hidden"
-              accept=".txt,.doc,.docx,.pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleFileUpload(file, 'job');
-              }}
-            />
-          </label>
-          <div className="text-center text-gray-500 text-sm">OR</div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Paste Job Description
-            </label>
-            <textarea
-              value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
-              placeholder="Paste the job description here..."
-              className="w-full h-40 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
-            />
-          </div>
-        </div>
-      </div>
-
       {/* LLM Provider */}
       <div className="bg-white rounded-xl shadow-md p-6">
         <div className="flex items-center space-x-3 mb-4">
           <Sparkles className="w-5 h-5 text-indigo-600" />
-          <h3 className="text-lg font-bold text-gray-900">LLM Provider</h3>
+          <h3 className="text-lg font-bold text-gray-900">AI Model for CV Analysis</h3>
+        </div>
+        <div className="mb-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <p className="text-sm text-indigo-900">
+            <strong>Why needed?</strong> The AI model intelligently extracts skills, experience years, education level, and job titles from your CV - far more accurate than simple text parsing. This ensures better search results and matching.
+          </p>
         </div>
         <select
           value={provider}
           onChange={(e) => setProvider(e.target.value)}
           className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
         >
-          <option value="grok">Grok (X.AI)</option>
-          <option value="anthropic">Claude (Anthropic)</option>
-          <option value="openai">GPT-4 (OpenAI)</option>
-          <option value="ollama">Ollama (Local)</option>
+          <option value="grok">Grok Cloud API (faster, external processing)</option>
+          <option value="anthropic">Claude (Anthropic) - Highest Quality</option>
+          <option value="ollama">Local & GDPR-compliant (llama3.2:3b)</option>
         </select>
       </div>
+
+      {/* Data Processing Options */}
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="flex items-center space-x-3 mb-4">
+          <Sparkles className="w-5 h-5 text-purple-600" />
+          <h3 className="text-lg font-bold text-gray-900">Data Processing Options</h3>
+        </div>
+        <div className="space-y-3">
+          <div className="mb-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+            <p className="text-sm text-purple-900">
+              <strong>What is data processing?</strong> When enabled, your CV data and crawled URL content will be analyzed by AI to extract skills, experience, education, and job titles. URLs are always crawled. This provides better search results but takes longer.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <label className="flex items-center space-x-3 p-3 border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
+              <input
+                type="radio"
+                name="processing"
+                checked={!skipProcessing}
+                onChange={() => setSkipProcessing(false)}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+              />
+              <div>
+                <div className="font-medium text-gray-900">Enable Data Processing (Recommended)</div>
+                <div className="text-sm text-gray-600">AI analyzes CV and crawled content, extracts skills - best search results</div>
+              </div>
+            </label>
+            <label className="flex items-center space-x-3 p-3 border-2 border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition">
+              <input
+                type="radio"
+                name="processing"
+                checked={skipProcessing}
+                onChange={() => setSkipProcessing(true)}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+              />
+              <div>
+                <div className="font-medium text-gray-900">Skip Data Processing (Raw Import)</div>
+                <div className="text-sm text-gray-600">URLs crawled but content not AI-analyzed - faster import, limited extraction</div>
+              </div>
+            </label>
+          </div>
+
+          {/* Feature Comparison Table */}
+          <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Feature
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Processing ON
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                    Processing OFF
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                <tr>
+                  <td className="px-4 py-3 text-sm text-gray-900">LLM CV-Analyse</td>
+                  <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">✅ Ja</td>
+                  <td className="px-4 py-3 text-sm text-center text-red-600 font-medium">❌ Nein</td>
+                </tr>
+                <tr className="bg-gray-50">
+                  <td className="px-4 py-3 text-sm text-gray-900">Skill-Extraktion</td>
+                  <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">✅ Ja</td>
+                  <td className="px-4 py-3 text-sm text-center text-red-600 font-medium">❌ Nein</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 text-sm text-gray-900">URL-Crawling</td>
+                  <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">✅ Ja</td>
+                  <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">✅ Ja</td>
+                </tr>
+                <tr className="bg-gray-50">
+                  <td className="px-4 py-3 text-sm text-gray-900">Text-Deduplizierung</td>
+                  <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">✅ Ja</td>
+                  <td className="px-4 py-3 text-sm text-center text-red-600 font-medium">❌ Nein</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 text-sm text-gray-900">Elasticsearch Index</td>
+                  <td className="px-4 py-3 text-sm text-center text-blue-600 font-medium">Strukturiert</td>
+                  <td className="px-4 py-3 text-sm text-center text-gray-600 font-medium">Raw</td>
+                </tr>
+                <tr className="bg-gray-50">
+                  <td className="px-4 py-3 text-sm text-gray-900">pgvector Chunks</td>
+                  <td className="px-4 py-3 text-sm text-center text-blue-600 font-medium">Optimiert</td>
+                  <td className="px-4 py-3 text-sm text-center text-gray-600 font-medium">Raw</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-3 text-sm text-gray-900 font-medium">Import-Geschwindigkeit</td>
+                  <td className="px-4 py-3 text-sm text-center text-orange-600 font-medium">Langsamer</td>
+                  <td className="px-4 py-3 text-sm text-center text-green-600 font-medium">✅ Schneller</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Import Status */}
+      {importStatus && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg flex items-center space-x-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>{importStatus}</span>
+        </div>
+      )}
+
+      {/* Success Message */}
+      {success && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg whitespace-pre-line">
+          {success}
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (
@@ -373,12 +415,12 @@ export default function AnalyzeJob({ onAnalyze }: AnalyzeJobProps) {
           {isLoading ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Analyzing...</span>
+              <span>Importing...</span>
             </>
           ) : (
             <>
               <Sparkles className="w-5 h-5" />
-              <span>Analyze & Compare</span>
+              <span>Import</span>
             </>
           )}
         </button>
