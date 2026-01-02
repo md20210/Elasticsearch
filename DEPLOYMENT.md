@@ -3,10 +3,17 @@
 ## Production Deployment to Strato Hosting
 
 ### Server Information
-- **Host**: REDACTED_HOST
-- **Username**: REDACTED_USER
+- **Host**: [Your SFTP host - set in environment variable]
+- **Username**: [Your SFTP username - set in environment variable]
 - **Protocol**: SFTP (Port 22)
 - **Correct Deployment Path**: `/dabrock-info/elasticsearch/`
+
+**Security Note**: Never commit credentials to git! Use environment variables instead:
+```bash
+export SFTP_HOST="your-host.example.com"
+export SFTP_USER="your-username"
+export SFTP_PASS="your-password"
+```
 
 ### Important Notes
 ⚠️ **CRITICAL**: Files must be deployed to `/dabrock-info/elasticsearch/` NOT `/elasticsearch/`
@@ -55,18 +62,18 @@ cd /mnt/e/CodelocalLLM/elasticsearch/dist
 
 # Upload root files
 timeout 120 curl --ftp-create-dirs --upload-file index.html \
-  "sftp://REDACTED_USER:REDACTED_PASS@REDACTED_HOST/dabrock-info/elasticsearch/index.html"
+  "sftp://${SFTP_USER}:${SFTP_PASS}@${SFTP_HOST}/dabrock-info/elasticsearch/index.html"
 
 timeout 120 curl --ftp-create-dirs --upload-file vite.svg \
-  "sftp://REDACTED_USER:REDACTED_PASS@REDACTED_HOST/dabrock-info/elasticsearch/vite.svg"
+  "sftp://${SFTP_USER}:${SFTP_PASS}@${SFTP_HOST}/dabrock-info/elasticsearch/vite.svg"
 
 # Upload assets (replace {hash} with actual hash from build)
 cd assets
 timeout 180 curl --ftp-create-dirs --upload-file index-{hash}.js \
-  "sftp://REDACTED_USER:REDACTED_PASS@REDACTED_HOST/dabrock-info/elasticsearch/assets/index-{hash}.js"
+  "sftp://${SFTP_USER}:${SFTP_PASS}@${SFTP_HOST}/dabrock-info/elasticsearch/assets/index-{hash}.js"
 
 timeout 120 curl --ftp-create-dirs --upload-file index-{hash}.css \
-  "sftp://REDACTED_USER:REDACTED_PASS@REDACTED_HOST/dabrock-info/elasticsearch/assets/index-{hash}.css"
+  "sftp://${SFTP_USER}:${SFTP_PASS}@${SFTP_HOST}/dabrock-info/elasticsearch/assets/index-{hash}.css"
 ```
 
 **Option B: Using automated deployment script**
@@ -80,13 +87,13 @@ cd /mnt/e/CodelocalLLM/elasticsearch
 
 ```bash
 # List files on server
-timeout 30 curl -l "sftp://REDACTED_USER:REDACTED_PASS@REDACTED_HOST/dabrock-info/elasticsearch/"
+timeout 30 curl -l "sftp://${SFTP_USER}:${SFTP_PASS}@${SFTP_HOST}/dabrock-info/elasticsearch/"
 
 # List assets
-timeout 30 curl -l "sftp://REDACTED_USER:REDACTED_PASS@REDACTED_HOST/dabrock-info/elasticsearch/assets/"
+timeout 30 curl -l "sftp://${SFTP_USER}:${SFTP_PASS}@${SFTP_HOST}/dabrock-info/elasticsearch/assets/"
 
 # Download and check index.html
-timeout 30 curl "sftp://REDACTED_USER:REDACTED_PASS@REDACTED_HOST/dabrock-info/elasticsearch/index.html"
+timeout 30 curl "sftp://${SFTP_USER}:${SFTP_PASS}@${SFTP_HOST}/dabrock-info/elasticsearch/index.html"
 ```
 
 #### 4. Clean Up Old Files
@@ -96,10 +103,10 @@ After deploying new version, remove old asset files:
 ```bash
 # Delete old JS and CSS files (replace {old-hash} with actual hash)
 timeout 30 curl -Q "RM /dabrock-info/elasticsearch/assets/index-{old-hash}.js" \
-  "sftp://REDACTED_USER:REDACTED_PASS@REDACTED_HOST"
+  "sftp://${SFTP_USER}:${SFTP_PASS}@${SFTP_HOST}"
 
 timeout 30 curl -Q "RM /dabrock-info/elasticsearch/assets/index-{old-hash}.css" \
-  "sftp://REDACTED_USER:REDACTED_PASS@REDACTED_HOST"
+  "sftp://${SFTP_USER}:${SFTP_PASS}@${SFTP_HOST}"
 ```
 
 ### Troubleshooting
@@ -115,7 +122,7 @@ If files were deployed to `/elasticsearch/` instead of `/dabrock-info/elasticsea
 
 ```bash
 # List files in wrong location
-timeout 30 curl -l "sftp://REDACTED_USER:REDACTED_PASS@REDACTED_HOST/elasticsearch/"
+timeout 30 curl -l "sftp://${SFTP_USER}:${SFTP_PASS}@${SFTP_HOST}/elasticsearch/"
 
 # You need to manually move them via FTP client or re-deploy to correct path
 ```

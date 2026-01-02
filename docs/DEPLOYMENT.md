@@ -15,10 +15,12 @@ The Elasticsearch Showcase uses a dual-deployment architecture:
 
 ### Environment Variables
 ```bash
-export SFTP_USER="REDACTED_USER"
-export SFTP_PASS="REDACTED_PASS"
-export SFTP_HOST="REDACTED_HOST"
+export SFTP_USER="your-username"
+export SFTP_PASS="your-password"
+export SFTP_HOST="your-host.example.com"
 ```
+
+**Security Note**: Never commit actual credentials to git! Store them securely.
 
 ### Build Process
 
@@ -73,9 +75,10 @@ timeout 180 curl -T /mnt/e/CodelocalLLM/elasticsearch/dist/assets/index-[hash].j
 #!/bin/bash
 # deploy-strato.sh
 
-export SFTP_USER="REDACTED_USER"
-export SFTP_PASS="REDACTED_PASS"
-export SFTP_HOST="REDACTED_HOST"
+# Load credentials from secure location (not git!)
+export SFTP_USER="your-username"
+export SFTP_PASS="your-password"
+export SFTP_HOST="your-host.example.com"
 
 echo "📤 Uploading index.html..."
 timeout 60 curl -T dist/index.html \
@@ -417,10 +420,10 @@ git push origin main
 cd /mnt/e/CodelocalLLM/elasticsearch
 npm run build
 
-# 3. Deploy frontend
-export SFTP_USER="REDACTED_USER" && \
-export SFTP_PASS="REDACTED_PASS" && \
-export SFTP_HOST="REDACTED_HOST" && \
+# 3. Deploy frontend (set your credentials first!)
+export SFTP_USER="your-username" && \
+export SFTP_PASS="your-password" && \
+export SFTP_HOST="your-host.example.com" && \
 timeout 60 curl -T dist/index.html --user "$SFTP_USER:$SFTP_PASS" "sftp://$SFTP_HOST/./dabrock-info/elasticsearch/index.html" -k && \
 timeout 60 curl -T dist/assets/*.css --user "$SFTP_USER:$SFTP_PASS" "sftp://$SFTP_HOST/./dabrock-info/elasticsearch/assets/" -k && \
 timeout 180 curl -T dist/assets/*.js --user "$SFTP_USER:$SFTP_PASS" "sftp://$SFTP_HOST/./dabrock-info/elasticsearch/assets/" -k

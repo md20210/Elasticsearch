@@ -12,6 +12,16 @@ dist
 dist-ssr
 *.local
 
+# Environment variables - NEVER COMMIT!
+.env
+.env.local
+.env.*.local
+
+# Deployment credentials
+deploy.sh
+*credentials*
+*secrets*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

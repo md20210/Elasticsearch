@@ -417,9 +417,9 @@ curl --user "$SFTP_USER:$SFTP_PASS" ...  # ❌ Variables undefined
 Combine all commands in single Bash invocation using `&&`:
 
 ```bash
-export SFTP_USER="REDACTED_USER" && \
-export SFTP_PASS="REDACTED_PASS" && \
-export SFTP_HOST="REDACTED_HOST" && \
+export SFTP_USER="your-username" && \
+export SFTP_PASS="your-password" && \
+export SFTP_HOST="your-host.example.com" && \
 curl --user "$SFTP_USER:$SFTP_PASS" "sftp://$SFTP_HOST/..." -k
 ```
 
@@ -428,12 +428,14 @@ Or create a deployment script:
 #!/bin/bash
 # deploy-strato.sh
 
-export SFTP_USER="REDACTED_USER"
-export SFTP_PASS="REDACTED_PASS"
-export SFTP_HOST="REDACTED_HOST"
+export SFTP_USER="your-username"
+export SFTP_PASS="your-password"
+export SFTP_HOST="your-host.example.com"
 
 timeout 60 curl -T dist/index.html --user "$SFTP_USER:$SFTP_PASS" "sftp://$SFTP_HOST/..." -k
 ```
+
+**Security Note**: Never commit actual credentials to git!
 
 **Files Changed**: None (process improvement)
 
