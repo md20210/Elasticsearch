@@ -195,55 +195,66 @@ export default function AnalyzeJob() {
         </div>
 
         {/* Recommendation Banner */}
-        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-900">
-            <strong>💡 Recommended:</strong> Open your CV in Word/PDF viewer and <strong>copy & paste the text below</strong>.
-            This is more reliable than file upload and works with any document format.
+        <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg">
+          <p className="text-sm text-blue-900 font-medium">
+            <strong>✅ Empfohlen:</strong> Öffne dein CV in Word/PDF und <strong>kopiere den Text unten hinein (Strg+A, Strg+C, Strg+V)</strong>.
+          </p>
+          <p className="text-xs text-blue-700 mt-2">
+            Dies ist die zuverlässigste Methode und funktioniert mit allen Dokumentformaten.
           </p>
         </div>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Paste CV/Resume Text (Recommended)
+            <label className="block text-base font-semibold text-gray-800 mb-2">
+              📄 CV/Lebenslauf Text einfügen
             </label>
+            <div className="mb-2 p-3 bg-gray-50 border border-gray-200 rounded text-xs text-gray-600">
+              <strong>Anleitung:</strong>
+              <ol className="list-decimal ml-4 mt-1 space-y-1">
+                <li>Öffne dein CV in Word, PDF-Viewer oder Browser</li>
+                <li>Markiere den gesamten Text (Strg+A / Cmd+A)</li>
+                <li>Kopiere den Text (Strg+C / Cmd+C)</li>
+                <li>Füge den Text hier ein (Strg+V / Cmd+V)</li>
+              </ol>
+            </div>
             <textarea
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
-              placeholder="Paste your CV/Resume text here..."
-              className="w-full h-96 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+              placeholder="Füge hier deinen CV/Lebenslauf Text ein...
+
+Beispiel:
+Max Mustermann
+Senior Software Engineer
+
+Berufserfahrung:
+- 5 Jahre Python, Django, FastAPI
+- 3 Jahre React, TypeScript
+..."
+              className="w-full h-96 px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y font-mono text-sm"
               style={{ minHeight: '400px', maxHeight: '800px' }}
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Current length: {cvText.length.toLocaleString()} characters
-            </p>
+            <div className="flex justify-between items-center mt-2">
+              <p className="text-xs text-gray-500">
+                Aktuelle Länge: <strong>{cvText.length.toLocaleString()}</strong> Zeichen
+              </p>
+              {cvText.length > 0 && (
+                <button
+                  onClick={() => setCvText('')}
+                  className="text-xs text-red-600 hover:text-red-800 underline"
+                >
+                  Text löschen
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* File Upload as Alternative */}
+          {/* Drag & Drop as Alternative (collapsed by default) */}
           <details className="border border-gray-200 rounded-lg">
-            <summary className="px-4 py-3 cursor-pointer text-sm text-gray-600 hover:bg-gray-50">
-              Alternative: Upload File or Drag & Drop (.txt, .pdf recommended - .docx may fail)
+            <summary className="px-4 py-3 cursor-pointer text-xs text-gray-500 hover:bg-gray-50">
+              Alternative: Drag & Drop Datei (.txt empfohlen - .pdf und .docx können fehlschlagen)
             </summary>
-            <div className="p-4 border-t border-gray-200 space-y-3">
-              {/* File Input Button */}
-              <div className="flex items-center justify-center">
-                <label className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg cursor-pointer transition">
-                  <Upload className="w-5 h-5" />
-                  <span>Choose File</span>
-                  <input
-                    type="file"
-                    accept=".txt,.pdf,.doc,.docx"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleFileUpload(file);
-                    }}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-
-              {/* Drag & Drop Area */}
-              <div className="text-center text-xs text-gray-500 my-2">or</div>
+            <div className="p-4 border-t border-gray-200">
               <div
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -264,15 +275,18 @@ export default function AnalyzeJob() {
               >
                 <Upload className={`w-6 h-6 mb-2 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
                 <p className="text-sm text-gray-600 font-medium mb-1">
-                  {isDragging ? 'Drop your file here' : 'Drag & Drop your CV file here'}
+                  {isDragging ? 'Datei hier ablegen' : 'Ziehe deine CV-Datei hierher'}
                 </p>
                 <p className="text-xs text-gray-500">
-                  Supports .txt, .pdf, .docx (max 10MB)
+                  Unterstützt .txt, .pdf, .docx (max 10MB)
                 </p>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                ⚠️ .docx files may fail if corrupted. If upload fails, please copy/paste the text instead.
-              </p>
+              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                <p className="text-xs text-yellow-800">
+                  <strong>⚠️ Hinweis:</strong> Datei-Upload kann bei .docx und .pdf fehlschlagen.
+                  Bei Problemen bitte den Text direkt kopieren und oben einfügen.
+                </p>
+              </div>
             </div>
           </details>
         </div>
