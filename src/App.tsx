@@ -1,31 +1,22 @@
 import { useState, useEffect } from 'react';
+import Showcase from './components/Showcase';
 import AnalyzeJob from './components/AnalyzeJob';
-import ResultsChromaDB from './components/ResultsChromaDB';
-import ResultsElastic from './components/ResultsElastic';
-import { Database, FlaskConical, FileSearch } from 'lucide-react';
-import { elasticsearchApi, initAuth } from './services/api';
-import type { AnalysisRequest, AnalysisResult } from './types';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
+import { Database, FileSearch, Sparkles, BarChart3 } from 'lucide-react';
+import { initAuth } from './services/api';
 
-type Tab = 'analyze' | 'chromadb' | 'elastic';
+type Tab = 'showcase' | 'analyze' | 'analytics';
 
 function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('analyze');
-  const [results, setResults] = useState<AnalysisResult | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('showcase');
   const [authReady, setAuthReady] = useState(false);
 
-  // Initialize authentication and load latest analysis on app load
+  // Initialize authentication on app load
   useEffect(() => {
     const initialize = async () => {
       try {
         await initAuth();
         console.log('Authentication initialized successfully');
-
-        // Load latest analysis if available
-        const latestAnalysis = await elasticsearchApi.getLatestAnalysis();
-        if (latestAnalysis) {
-          setResults(latestAnalysis);
-          console.log('Loaded latest analysis from database');
-        }
       } catch (error) {
         console.error('Failed to initialize authentication:', error);
       } finally {
@@ -37,16 +28,6 @@ function App() {
     initialize();
   }, []);
 
-  const handleAnalyze = async (data: AnalysisRequest, provider: string) => {
-    try {
-      const result = await elasticsearchApi.analyzeJob(data, provider);
-      setResults(result);
-      setActiveTab('chromadb');
-    } catch (error) {
-      console.error('Analysis failed:', error);
-      throw error;
-    }
-  };
 
   // NO LOGIN REQUIRED FOR ELASTICSEARCH SHOWCASE - Direct Access
   // Authentication is handled automatically using demo user token
@@ -61,7 +42,7 @@ function App() {
               <Database className="w-8 h-8 text-blue-600" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Elasticsearch Showcase</h1>
-                <p className="text-sm text-gray-600">ChromaDB vs Elasticsearch Comparison</p>
+                <p className="text-sm text-gray-600">pgvector vs Elasticsearch Comparison</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -79,6 +60,19 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-8" aria-label="Tabs">
             <button
+              onClick={() => setActiveTab('showcase')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
+                activeTab === 'showcase'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-5 h-5" />
+                <span>Showcase</span>
+              </div>
+            </button>
+            <button
               onClick={() => setActiveTab('analyze')}
               className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
                 activeTab === 'analyze'
@@ -88,33 +82,20 @@ function App() {
             >
               <div className="flex items-center space-x-2">
                 <FileSearch className="w-5 h-5" />
-                <span>Analyze Job</span>
+                <span>Import Data</span>
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('chromadb')}
+              onClick={() => setActiveTab('analytics')}
               className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
-                activeTab === 'chromadb'
+                activeTab === 'analytics'
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
               <div className="flex items-center space-x-2">
-                <FlaskConical className="w-5 h-5" />
-                <span>Results ChromaDB</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('elastic')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition ${
-                activeTab === 'elastic'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <Database className="w-5 h-5" />
-                <span>Results Elastic</span>
+                <BarChart3 className="w-5 h-5" />
+                <span>Analytics</span>
               </div>
             </button>
           </nav>
@@ -132,9 +113,9 @@ function App() {
           </div>
         ) : (
           <>
-            {activeTab === 'analyze' && <AnalyzeJob onAnalyze={handleAnalyze} />}
-            {activeTab === 'chromadb' && <ResultsChromaDB results={results} />}
-            {activeTab === 'elastic' && <ResultsElastic results={results} />}
+            {activeTab === 'showcase' && <Showcase />}
+            {activeTab === 'analyze' && <AnalyzeJob />}
+            {activeTab === 'analytics' && <AnalyticsDashboard />}
           </>
         )}
       </main>
