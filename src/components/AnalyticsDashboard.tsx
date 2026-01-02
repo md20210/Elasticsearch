@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { BarChart, Bar, PieChart, Pie, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { TrendingUp, Target, Clock } from 'lucide-react';
+import { TrendingUp, Target, Clock, Trash2 } from 'lucide-react';
 
 const API_BASE = 'https://general-backend-production-a734.up.railway.app';
 
@@ -26,8 +26,8 @@ interface AnalyticsData {
 }
 
 const COLORS = {
-  pgvector: '#3b82f6', // blue
-  elasticsearch: '#f97316', // orange
+  pgvector: '#22c55e', // green-500 - bright green for winner
+  elasticsearch: '#eab308', // yellow-500 - bright yellow for winner
   tie: '#6b7280' // gray
 };
 
@@ -55,6 +55,23 @@ export default function AnalyticsDashboard() {
       setError(err.response?.data?.detail || 'Failed to load analytics');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const clearAnalytics = async () => {
+    if (!confirm('Are you sure you want to delete all analytics data? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      await axios.delete(`${API_BASE}/elasticsearch/clear-analytics`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // Refresh data after clearing
+      await fetchAnalytics();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to clear analytics');
     }
   };
 
@@ -105,9 +122,18 @@ export default function AnalyticsDashboard() {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">RAG Comparison Analytics</h1>
-          <p className="text-gray-600">Real-time performance metrics for pgvector vs Elasticsearch</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">RAG Comparison Analytics</h1>
+            <p className="text-gray-600">Real-time performance metrics for pgvector vs Elasticsearch</p>
+          </div>
+          <button
+            onClick={clearAnalytics}
+            className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Clear All</span>
+          </button>
         </div>
 
         {/* KPI Cards */}
@@ -123,17 +149,17 @@ export default function AnalyticsDashboard() {
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600">pgvector Score</h3>
-              <TrendingUp className="w-5 h-5 text-blue-500" />
+              <TrendingUp className="w-5 h-5 text-green-500" />
             </div>
-            <p className="text-3xl font-bold text-blue-600">{data.avg_pgvector_score.toFixed(1)}%</p>
+            <p className="text-3xl font-bold text-green-600">{data.avg_pgvector_score.toFixed(2)}%</p>
           </div>
 
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-gray-600">Elasticsearch Score</h3>
-              <TrendingUp className="w-5 h-5 text-orange-500" />
+              <TrendingUp className="w-5 h-5 text-yellow-500" />
             </div>
-            <p className="text-3xl font-bold text-orange-600">{data.avg_elasticsearch_score.toFixed(1)}%</p>
+            <p className="text-3xl font-bold text-yellow-600">{data.avg_elasticsearch_score.toFixed(2)}%</p>
           </div>
 
           <div className="bg-white rounded-xl shadow-md p-6">
@@ -207,9 +233,9 @@ export default function AnalyticsDashboard() {
               </BarChart>
             </ResponsiveContainer>
             <p className="text-sm text-gray-600 mt-4 text-center">
-              {data.avg_pgvector_latency < data.avg_elasticsearch_latency
-                ? `⚡ Elasticsearch is ${(data.avg_pgvector_latency - data.avg_elasticsearch_latency).toFixed(0)}ms faster`
-                : `⚡ pgvector is ${(data.avg_elasticsearch_latency - data.avg_pgvector_latency).toFixed(0)}ms faster`}
+              {data.avg_elasticsearch_latency < data.avg_pgvector_latency
+                ? `⚡ Elasticsearch is ${(data.avg_pgvector_latency - data.avg_elasticsearch_latency).toFixed(2)}ms faster`
+                : `⚡ pgvector is ${(data.avg_elasticsearch_latency - data.avg_pgvector_latency).toFixed(2)}ms faster`}
             </p>
           </div>
 
@@ -258,8 +284,8 @@ export default function AnalyticsDashboard() {
                     <td className="px-6 py-4 text-sm text-gray-900 max-w-md truncate">{query.query}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                        query.winner === 'pgvector' ? 'bg-blue-100 text-blue-800' :
-                        query.winner === 'elasticsearch' ? 'bg-orange-100 text-orange-800' :
+                        query.winner === 'pgvector' ? 'bg-green-100 text-green-800' :
+                        query.winner === 'elasticsearch' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {query.winner}
@@ -268,7 +294,7 @@ export default function AnalyticsDashboard() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{query.pgvector_score}%</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{query.elasticsearch_score}%</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {query.pgvector_latency.toFixed(0)}ms / {query.elasticsearch_latency.toFixed(0)}ms
+                      {query.pgvector_latency.toFixed(2)}ms / {query.elasticsearch_latency.toFixed(2)}ms
                     </td>
                   </tr>
                 ))}
