@@ -45,7 +45,7 @@ export default function AnalyticsDashboard() {
 
   const fetchAnalytics = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       const response = await axios.get(`${API_BASE}/elasticsearch/rag-analytics`, {
         headers: { Authorization: `Bearer ${token}` }
       });

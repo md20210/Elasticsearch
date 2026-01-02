@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Database, FlaskConical, Award, Clock, Sparkles } from 'lucide-react';
+import { Search, Database, FlaskConical, Award, Clock, Sparkles, Upload } from 'lucide-react';
 
 interface ComparisonResult {
   question: string;
@@ -25,13 +25,23 @@ interface ComparisonResult {
   timestamp: string;
 }
 
-export default function Showcase() {
+export default function ComparisonTab() {
   const [question, setQuestion] = useState('');
   const [selectedLLM, setSelectedLLM] = useState<'local' | 'grok'>('grok');
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<ComparisonResult[]>([]);
+  const [uploadingQuestions, setUploadingQuestions] = useState(false);
+  const [results, setResults] = useState<ComparisonResult[]>(() => {
+    // Load saved results from localStorage on mount
+    const saved = localStorage.getItem('comparison_results');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [error, setError] = useState<string | null>(null);
   const [currentModel, setCurrentModel] = useState<string>('llama3.2:3b');
+
+  // Save results to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('comparison_results', JSON.stringify(results));
+  }, [results]);
 
   // Load current model on mount
   useEffect(() => {
@@ -92,6 +102,71 @@ export default function Showcase() {
     }
   };
 
+  const handleUploadQuestions = async (file: File) => {
+    setUploadingQuestions(true);
+    setError(null);
+
+    try {
+      // Read file content
+      const text = await file.text();
+      const questions = text
+        .split('\n')
+        .map(q => q.trim())
+        .filter(q => q.length > 0);
+
+      if (questions.length === 0) {
+        throw new Error('No questions found in file');
+      }
+
+      if (questions.length > 50) {
+        throw new Error('Maximum 50 questions allowed');
+      }
+
+      // Process each question
+      const newResults: ComparisonResult[] = [];
+      for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        console.log(`Processing question ${i + 1}/${questions.length}: ${q}`);
+
+        try {
+          const response = await fetch(
+            `https://general-backend-production-a734.up.railway.app/elasticsearch/compare-query?question=${encodeURIComponent(q)}&provider=${selectedLLM}`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+
+          if (response.ok) {
+            const data: ComparisonResult = await response.json();
+            newResults.push(data);
+          } else {
+            console.error(`Failed to process question: ${q}`);
+          }
+        } catch (err) {
+          console.error(`Error processing question: ${q}`, err);
+        }
+
+        // Small delay to avoid overwhelming the server
+        if (i < questions.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      // Add all new results to the beginning
+      setResults([...newResults, ...results]);
+      console.log(`Successfully processed ${newResults.length}/${questions.length} questions`);
+    } catch (err) {
+      console.error('Failed to upload questions:', err);
+      setError(err instanceof Error ? err.message : 'Failed to upload questions');
+    } finally {
+      setUploadingQuestions(false);
+    }
+  };
+
   const getWinnerColor = (database: string, winner: string) => {
     if (winner === database) {
       return 'bg-green-50 border-green-500';
@@ -108,8 +183,8 @@ export default function Showcase() {
     return 'bg-red-100 text-red-800';
   };
 
-  // Only show last 3 results
-  const visibleResults = results.slice(0, 3);
+  // Show all results in scrollable frame
+  const visibleResults = results; // Display all results
 
   return (
     <div className="space-y-6">
@@ -190,18 +265,75 @@ export default function Showcase() {
             </p>
           </div>
         )}
+
+        {uploadingQuestions && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <p className="text-sm text-blue-800">
+                Processing questions... This may take a moment.
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <p className="text-sm text-gray-700">
+            <strong>💡 Tip:</strong> Upload a .txt file with one question per line (max 50 questions).
+            Each question will be automatically compared between pgvector and Elasticsearch.
+          </p>
+        </div>
+      </div>
+
+      {/* Upload Questions Button - Always Visible */}
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Bulk Question Upload</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Upload multiple questions at once for batch comparison
+            </p>
+          </div>
+          <label className="bg-blue-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-600 transition cursor-pointer flex items-center space-x-2">
+            <Upload className="w-5 h-5" />
+            <span>
+              {uploadingQuestions ? 'Uploading...' : 'Upload Questions'}
+            </span>
+            <input
+              type="file"
+              className="hidden"
+              accept=".txt,text/plain"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleUploadQuestions(file);
+              }}
+              disabled={uploadingQuestions || loading}
+            />
+          </label>
+        </div>
       </div>
 
       {/* Results Table */}
       {results.length > 0 && (
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-900">
-              Comparison Results (last 3)
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Total {results.length} question{results.length !== 1 ? 's' : ''} asked
-            </p>
+          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">
+                Comparison Results
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {results.length} question{results.length !== 1 ? 's' : ''} asked (scroll to see all)
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setResults([]);
+                localStorage.removeItem('comparison_results');
+              }}
+              className="bg-red-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-600 transition text-sm"
+            >
+              Clear All Results
+            </button>
           </div>
 
           <div className="overflow-x-auto" style={{ maxHeight: '800px', overflowY: 'auto' }}>
@@ -301,12 +433,6 @@ export default function Showcase() {
               </tbody>
             </table>
           </div>
-
-          {results.length > 3 && (
-            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center text-sm text-gray-600">
-              {results.length - 3} more results hidden (scroll for older entries)
-            </div>
-          )}
         </div>
       )}
 
@@ -336,31 +462,72 @@ export default function Showcase() {
 
       {/* Information Section */}
       <div className="bg-white rounded-xl shadow-md p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">How Does the Comparison Work?</h2>
-        <div className="grid md:grid-cols-2 gap-6">
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-2 flex items-center space-x-2">
-              <FlaskConical className="w-5 h-5 text-purple-600" />
-              <span>pgvector (PostgreSQL)</span>
-            </h3>
-            <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-              <li>Pure Vector Similarity Search</li>
-              <li>Embedding-based Search</li>
-              <li>PostgreSQL-integrated</li>
-              <li>Fast Nearest-Neighbor Search</li>
-            </ul>
+        <h2 className="text-xl font-bold text-gray-900 mb-6">How Does the Comparison Work?</h2>
+        <div className="grid md:grid-cols-2 gap-8">
+          {/* pgvector Column */}
+          <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg p-5 border border-purple-100">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-purple-600 p-2 rounded-lg">
+                <FlaskConical className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">pgvector (PostgreSQL)</h3>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-start space-x-2">
+                <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5 flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Pure Vector Search</p>
+                  <p className="text-xs text-gray-600">Semantic similarity using embeddings</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5 flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">PostgreSQL Native</p>
+                  <p className="text-xs text-gray-600">ACID transactions & SQL integration</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <div className="w-2 h-2 bg-purple-600 rounded-full mt-1.5 flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Fast k-NN Search</p>
+                  <p className="text-xs text-gray-600">Optimized nearest-neighbor retrieval</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-2 flex items-center space-x-2">
-              <Database className="w-5 h-5 text-teal-600" />
-              <span>Elasticsearch</span>
-            </h3>
-            <ul className="list-disc list-inside space-y-1 text-sm text-gray-700">
-              <li>Hybrid Search: BM25 + kNN</li>
-              <li>Fuzzy Matching & Synonyms</li>
-              <li>Field Boosting</li>
-              <li>Production-Ready Scaling</li>
-            </ul>
+
+          {/* Elasticsearch Column */}
+          <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-lg p-5 border border-orange-100">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-orange-600 p-2 rounded-lg">
+                <Database className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">Elasticsearch</h3>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-start space-x-2">
+                <div className="w-2 h-2 bg-orange-600 rounded-full mt-1.5 flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Hybrid Search</p>
+                  <p className="text-xs text-gray-600">BM25 keyword + kNN vector (70/30 weighted)</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <div className="w-2 h-2 bg-orange-600 rounded-full mt-1.5 flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Advanced Text Processing</p>
+                  <p className="text-xs text-gray-600">Fuzzy matching, synonyms, field boosting</p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-2">
+                <div className="w-2 h-2 bg-orange-600 rounded-full mt-1.5 flex-shrink-0"></div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Enterprise Scale</p>
+                  <p className="text-xs text-gray-600">Production-ready with horizontal scaling</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div className="mt-4 p-4 bg-blue-50 rounded-lg">
